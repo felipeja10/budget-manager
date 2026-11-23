@@ -1,9 +1,13 @@
-"""Read CSV transactions, rejecting invalid records at the import boundary."""
+"""Validated CSV reads and atomic saves."""
 
 import csv
+import os
+from collections.abc import Iterable
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from budget_manager.models import Transaction
+from budget_manager.services import validate_transactions
 from budget_manager.validation import TRANSACTION_FIELDS, ValidationError
 
 
@@ -40,3 +44,44 @@ def load_transactions(file_path: str | Path) -> list[Transaction]:
                 f"row {reader.line_num}: malformed CSV: {error}"
             ) from error
     return transactions
+
+
+def save_transactions(
+    file_path: str | Path, transactions: Iterable[Transaction]
+) -> None:
+    """Replace a CSV only after validating and fully writing its new contents."""
+    records = validate_transactions(transactions)
+    destination = Path(file_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        # The same directory keeps os.replace on the same filesystem.
+        with NamedTemporaryFile(
+            mode="w",
+            newline="",
+            encoding="utf-8",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as output:
+            temporary = Path(output.name)
+            writer = csv.writer(output)
+            writer.writerow(TRANSACTION_FIELDS)
+            for transaction in records:
+                writer.writerow(
+                    [
+                        transaction.id,
+                        transaction.date.isoformat(),
+                        transaction.kind,
+                        transaction.category,
+                        str(transaction.amount),
+                        transaction.currency,
+                    ]
+                )
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, destination)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)

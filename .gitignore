@@ -225,3 +225,6 @@ __marimo__/
 #unnecessary files
 /transactions - Sheet1.csv
 /personal_budget_manager_conversation.md
+
+# Local transaction store
+/data/transactions.csv
