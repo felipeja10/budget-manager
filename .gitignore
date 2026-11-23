@@ -221,3 +221,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+#unnecessary files
+/transactions - Sheet1.csv
+/personal_budget_manager_conversation.md
